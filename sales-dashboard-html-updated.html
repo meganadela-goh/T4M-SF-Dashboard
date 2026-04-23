@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASM Trans4m 2.0 — Sales Design Status Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; min-height: 100vh; }
+    :root {
+      --s-1: clamp(0.6rem,  0.55rem + 0.18vw, 0.72rem);
+      --s0:  clamp(0.72rem, 0.68rem + 0.2vw,  0.82rem);
+      --s1:  clamp(0.82rem, 0.78rem + 0.22vw, 0.95rem);
+      --s2:  clamp(0.95rem, 0.88rem + 0.35vw, 1.15rem);
+      --s3:  clamp(1.1rem,  1.0rem  + 0.5vw,  1.4rem);
+      --s4:  clamp(1.3rem,  1.1rem  + 0.9vw,  1.75rem);
+      --s5:  clamp(1.4rem,  1.2rem  + 1vw,    1.9rem);
+    }
+    body { font-family: "Inter","Helvetica Neue",Arial,sans-serif; font-size: var(--s0); color: #2C2C2A; background: #F7F6F4; line-height: 1.4; }
+
+    .nav { background: #4A1F5C; height: 40px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-wordmark { font-size: var(--s1); font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-sub { font-size: var(--s-1); color: rgba(255,255,255,0.65); }
+    .nav-date { font-size: var(--s-1); color: rgba(255,255,255,0.85); font-weight: 600; }
+    .btn-sm { background: transparent; color: rgba(255,255,255,0.85); border: 1px solid rgba(255,255,255,0.35); border-radius: 4px; padding: 3px 10px; font-size: var(--s-1); font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-sm:hover { background: rgba(255,255,255,0.1); }
+
+    .hero { background: linear-gradient(160deg, #5C2D6E 0%, #4A1F5C 60%, #3A1548 100%); padding: 12px 20px; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .hero-left h1 { font-size: var(--s3); font-weight: 700; color: #fff !important; letter-spacing: -0.5px; line-height: 1.2; }
+    .hero-left p { font-size: var(--s-1); color: rgba(255,255,255,0.65) !important; margin-top: 2px; }
+    .kpi-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .kpi-card { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; padding: 8px 14px; text-align: center; min-width: 80px; }
+    .kpi-value { font-size: var(--s5); font-weight: 700; color: #fff; line-height: 1; }
+    .kpi-label { font-size: var(--s-1); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+
+    .body { padding: 10px 16px 20px; }
+
+    .legend { background: #fff; border: 1px solid #EDEBE8; border-radius: 6px; padding: 6px 12px; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+    .legend-title { font-size: var(--s-1); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #888780; margin-right: 4px; }
+    .badge { display: inline-block; border-radius: 20px; padding: 1px 8px; font-size: var(--s-1); font-weight: 600; line-height: 1.6; }
+
+    .section-head { border-left: 3px solid #5C2D6E; padding-left: 10px; margin-bottom: 8px; display: flex; align-items: baseline; gap: 10px; }
+    .section-head h2 { font-size: var(--s2); font-weight: 600; color: #4A1F5C; }
+    .section-head p { font-size: var(--s-1); color: #888780; }
+
+    .area-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; width: 100%; }
+    @media(max-width:1100px){ .area-grid { grid-template-columns: repeat(3,1fr); } }
+    @media(max-width:780px){  .area-grid { grid-template-columns: repeat(2,1fr); } }
+    @media(max-width:480px){  .area-grid { grid-template-columns: 1fr; } }
+
+    .area-card { background: #fff; border: 1px solid #EDEBE8; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+    .area-card-header { background: #4A1F5C; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; }
+    .area-card-header span { color: #fff; font-weight: 600; font-size: var(--s0); }
+    .area-card-header small { font-size: var(--s-1); color: rgba(255,255,255,0.6); }
+    .area-card-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+
+    /* Actions */
+    .action-box { background: #F7F6F4; border: 1px solid #EDEBE8; border-radius: 5px; padding: 6px 8px; }
+    .row-label { font-size: var(--s-1); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888780; margin-bottom: 4px; }
+
+    .num-split { display: flex; gap: 5px; }
+    .num-block { flex: 1; border-radius: 5px; padding: 5px 6px; text-align: center; }
+    .num-block-value { font-size: var(--s4); font-weight: 700; line-height: 1; }
+    .num-block-label { font-size: var(--s-1); font-weight: 600; margin-top: 2px; opacity: 0.85; }
+
+    /* Funnel */
+    .funnel-section { border-left: 3px solid #5C2D6E; padding-left: 8px; display: flex; flex-direction: column; gap: 5px; }
+    .funnel-divider { display: flex; align-items: center; gap: 6px; }
+    .funnel-line { width: 1px; height: 10px; background: #EDEBE8; }
+    .funnel-text { font-size: var(--s-1); color: #888780; }
+
+    /* Bars — two col layout */
+    .bar-row { display: flex; gap: 8px; align-items: flex-start; }
+    .bar-main { flex: 1; min-width: 0; }
+    .bar-wrap { display: flex; align-items: center; gap: 6px; }
+    .bar-track-wrap { flex: 1; min-width: 0; }
+    .bar-track { height: 14px; border-radius: 4px; background: #EDEBE8; position: relative; }
+    .bar-inner { height: 100%; display: flex; gap: 1px; border-radius: 4px; overflow: hidden; position: absolute; top: 0; left: 0; transition: width 0.5s; }
+    .bar-segment { height: 100%; min-width: 2px; }
+    .bar-count { font-size: var(--s2); font-weight: 700; color: #4A1F5C; white-space: nowrap; min-width: 22px; text-align: right; flex-shrink: 0; }
+    .bar-tags { display: flex; flex-wrap: wrap; gap: 1px 6px; margin-top: 3px; }
+    .bar-tag { display: flex; align-items: center; gap: 2px; font-size: var(--s-1); color: #888780; }
+    .bar-tag-dot { width: 6px; height: 6px; border-radius: 1px; flex-shrink: 0; }
+
+    /* Side stat — fills blank space */
+    .bar-side { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; min-width: 52px; background: #F7F6F4; border-radius: 5px; padding: 4px 6px; text-align: center; align-self: stretch; justify-content: center; }
+    .bar-side-val { font-size: var(--s2); font-weight: 700; color: #4A1F5C; line-height: 1; }
+    .bar-side-label { font-size: var(--s-1); color: #888780; font-weight: 600; margin-top: 1px; }
+    .bar-side-sub { font-size: var(--s-1); color: #1B5E20; font-weight: 600; }
+
+    .empty { font-size: var(--s-1); color: #aaa; }
+
+    /* WoW */
+    .wow-section { margin-top: 20px; }
+    .wow-upload-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .wow-upload-row label { font-size: var(--s0); font-weight: 600; color: #4A1F5C; }
+    .btn-secondary { background: transparent; color: #4A1F5C; border: 1.5px solid #4A1F5C; border-radius: 5px; padding: 5px 14px; font-size: var(--s0); font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-secondary:hover { background: #F0E8F5; }
+    .wow-panel { background: #fff; border: 1px solid #EDEBE8; border-radius: 8px; overflow: hidden; }
+    .wow-header { background: #5C2D6E; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; }
+    .wow-header span { color: #fff; font-weight: 700; font-size: var(--s1); }
+    .wow-header small { color: rgba(255,255,255,0.65); font-size: var(--s-1); }
+    .wow-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* WoW tiles */
+    .wow-summary { display: flex; gap: 8px; flex-wrap: wrap; }
+    .wow-tile { flex: 1; min-width: 90px; border-radius: 6px; padding: 8px 10px; text-align: center; }
+    .wow-tile-val { font-size: var(--s4); font-weight: 700; line-height: 1; }
+    .wow-tile-label { font-size: var(--s-1); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 3px; }
+    .wow-tile-delta { font-size: var(--s1); font-weight: 700; margin-top: 2px; }
+
+    /* WoW narrative — two col */
+    .wow-narrative { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media(max-width:700px){ .wow-narrative { grid-template-columns: 1fr; } }
+    .wow-narrative-box { background: #F7F6F4; border: 1px solid #EDEBE8; border-radius: 6px; padding: 10px 14px; }
+    .wow-narrative-title { font-size: var(--s-1); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #4A1F5C; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #EDEBE8; }
+    .wow-narrative ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+    .wow-narrative ul li { font-size: var(--s0); color: #2C2C2A; line-height: 1.5; padding: 2px 0; border-bottom: 1px solid #EDEBE8; }
+    .wow-narrative ul li:last-child { border-bottom: none; }
+
+    /* Upload */
+    .upload-box { background: #fff; border: 2px dashed #EDEBE8; border-radius: 8px; padding: 40px 24px; text-align: center; margin-bottom: 12px; }
+    .upload-box h3 { font-size: var(--s2); font-weight: 600; color: #2C2C2A; margin-bottom: 8px; }
+    .upload-box p { font-size: var(--s0); color: #888780; margin-bottom: 16px; max-width: 440px; margin-left: auto; margin-right: auto; }
+    .btn-primary { background: #00B2A9; color: #fff; border: none; border-radius: 6px; padding: 10px 22px; font-size: var(--s0); font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-primary:hover { background: #009B93; }
+
+    .footer { background: #2C2C2A; color: rgba(255,255,255,0.5); padding: 8px 20px; font-size: var(--s-1); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 16px; }
+
+    @media(max-width:480px){ .kpi-row { display: grid; grid-template-columns: repeat(2,1fr); } .nav-sub { display: none; } }
+    #dashboard { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="nav">
+  <span class="nav-wordmark">ASM</span>
+  <div class="nav-right">
+    <span class="nav-sub">Trans4m 2.0 · Salesforce Workstream</span>
+    <span class="nav-date" id="nav-date"></span>
+    <button class="btn-sm" onclick="triggerUpload('file-input')" id="load-btn" style="display:none">📂 Load CSV</button>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="hero-left">
+    <h1 style="color:#fff !important;">Sales design status dashboard</h1>
+    <p style="color:rgba(255,255,255,0.65) !important;">Sales Track · Weekly PMO Report · Design Blockers → User Stories → Development</p>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-value" id="kpi-actions">—</div><div class="kpi-label">Actions</div></div>
+    <div class="kpi-card"><div class="kpi-value" id="kpi-reqs">—</div><div class="kpi-label">Requirements</div></div>
+    <div class="kpi-card"><div class="kpi-value" id="kpi-tasks">—</div><div class="kpi-label">Tasks</div></div>
+    <div class="kpi-card"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total</div></div>
+  </div>
+</div>
+
+<div class="body">
+  <div class="upload-box" id="upload-box">
+    <h3>Load your CSV data</h3>
+    <p>Upload your Salesforce Sales Requirement Action Task CSV. Required columns: Work Item Type, State, Tags, Area Path.</p>
+    <button class="btn-primary" onclick="triggerUpload('file-input')">📂 Choose CSV file</button>
+    <input type="file" id="file-input" accept=".csv" style="display:none" onchange="handleFile(event,'current')">
+  </div>
+
+  <div id="dashboard">
+    <div class="legend">
+      <span class="legend-title">Legend</span>
+      <span class="badge" style="background:#F0E8F5;color:#4A1F5C;">New</span>
+      <span class="badge" style="background:#FFF3CD;color:#8A5700;">In Analysis</span>
+      <span class="badge" style="background:#E0F6F5;color:#007A74;">In Review</span>
+      <span class="badge" style="background:#EDEBE8;color:#5F5E5A;">On Hold</span>
+      <span class="badge" style="background:#FDECEA;color:#9A2520;">Cancelled</span>
+      <span class="badge" style="background:#E8F5E9;color:#1B5E20;">Aligned</span>
+      <span class="badge" style="background:#FFF3CD;color:#8A5700;">In Progress</span>
+      <span style="width:1px;height:12px;background:#EDEBE8;display:inline-block;margin:0 2px;vertical-align:middle"></span>
+      <span class="badge" style="background:#8C5FA0;color:#fff;">ASM to Review</span>
+      <span class="badge" style="background:#00B2A9;color:#fff;">ACN to Review</span>
+      <span class="badge" style="background:#4A1F5C;color:#fff;">New (req)</span>
+    </div>
+
+    <div class="section-head">
+      <h2>Breakdown by area path</h2>
+      <p>Actions independent · User Stories → Development funnel</p>
+    </div>
+
+    <div class="area-grid" id="area-grid"></div>
+
+    <div class="wow-section">
+      <div class="section-head" style="margin-top:16px;">
+        <h2>Week-on-week changes</h2>
+        <p>Compare this week vs last week</p>
+      </div>
+      <div class="wow-upload-row">
+        <label>Load last week's data:</label>
+        <button class="btn-secondary" onclick="triggerUpload('file-input-prev')">📂 Choose last week's CSV</button>
+        <input type="file" id="file-input-prev" accept=".csv" style="display:none" onchange="handleFile(event,'prev')">
+        <span id="prev-file-label" style="font-size:var(--s-1);color:#888780;"></span>
+      </div>
+      <div class="wow-panel" id="wow-panel" style="display:none">
+        <div class="wow-header">
+          <span>📊 Week-on-week summary</span>
+          <small id="wow-subtitle"></small>
+        </div>
+        <div class="wow-body">
+          <div class="wow-summary" id="wow-summary"></div>
+          <div class="wow-narrative" id="wow-narrative"></div>
+        </div>
+      </div>
+      <div id="wow-empty" style="display:none;font-size:var(--s0);color:#888780;padding:12px 0;">Upload last week's CSV above to see changes.</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>ASM · Trans4m 2.0 · Salesforce Sales Track · Internal use only</span>
+  <span id="footer-file"></span>
+</div>
+
+<script>
+var AREAS = [
+  { key:"Account Mgmt",     label:"Account Mgmt" },
+  { key:"Opportunity Mgmt", label:"Opportunity Mgmt" },
+  { key:"Quote Mgmt",       label:"Quote Mgmt" },
+  { key:"Order Mgmt",       label:"Order Mgmt" },
+  { key:"Product Mgmt",     label:"Product Mgmt" },
+  { key:"Reporting",        label:"Reporting" },
+  { key:"Forecast Mgmt",    label:"Forecast Mgmt" }
+];
+var SBC = {
+  "New":"#8C5FA0","In Analysis":"#C87D00","In Review":"#00B2A9","On Hold":"#888780",
+  "Cancelled":"#9A2520","Complete":"#2E7D32","Done":"#2E7D32","In Progress":"#C87D00",
+  "Resolved":"#00B2A9","Closed":"#888780","Active":"#00B2A9","Approved":"#2E7D32",
+  "Committed":"#5C2D6E","Cut":"#9A2520","Unscheduled":"#888780"
+};
+var RTC  = { "ASM to Review":"#8C5FA0","ACN to Review":"#00B2A9","New":"#4A1F5C" };
+var DONE = ["Complete","Done","Resolved","Closed","Approved"];
+var PROG = ["In Analysis","In Progress","In Review","Active","Committed"];
+var BLOK = ["On Hold","Cancelled","Cut"];
+
+function isDone(s){ return DONE.indexOf(s)>-1; }
+function isProg(s){ return PROG.indexOf(s)>-1; }
+function isBlok(s){ return BLOK.indexOf(s)>-1; }
+function gc(s){ return SBC[s]||"#8C5FA0"; }
+function fa(arr,k){ return arr.filter(function(d){ return (d["Area Path"]||"").indexOf(k)>-1; }); }
+function getType(rows,t){ return rows.filter(function(d){ return (d["Work Item Type"]||"").trim()===t; }); }
+function us(arr){ var seen={},out=[]; arr.forEach(function(d){ var s=(d.State||"").trim(); if(s&&!seen[s]){seen[s]=1;out.push(s);} }); return out; }
+function getTag(d){ var t=(d.Tags||"").toLowerCase(); return t.indexOf("asm to review")>-1?"ASM to Review":t.indexOf("acn to review")>-1?"ACN to Review":"New"; }
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+document.getElementById("nav-date").textContent = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+
+var currentData=null, prevData=null;
+
+function triggerUpload(id){ document.getElementById(id).click(); }
+
+function handleFile(e,which){
+  var f=e.target.files[0]; if(!f) return;
+  Papa.parse(f,{header:true,skipEmptyLines:true,complete:function(res){
+    if(which==="current"){ currentData=res.data; renderMain(res.data,f.name); }
+    else{ prevData=res.data; document.getElementById("prev-file-label").textContent="📄 "+f.name; renderWoW(); }
+  }});
+}
+
+function renderMain(rows,fname){
+  var actions=getType(rows,"Action"),reqs=getType(rows,"Requirement"),tasks=getType(rows,"Task");
+  var aS=us(actions),tS=us(tasks);
+  document.getElementById("kpi-actions").textContent=actions.length;
+  document.getElementById("kpi-reqs").textContent=reqs.length;
+  document.getElementById("kpi-tasks").textContent=tasks.length;
+  document.getElementById("kpi-total").textContent=rows.length;
+  document.getElementById("footer-file").textContent=fname;
+  document.getElementById("upload-box").style.display="none";
+  document.getElementById("load-btn").style.display="inline-block";
+  document.getElementById("dashboard").style.display="block";
+  document.getElementById("wow-empty").style.display="block";
+
+  var grid=document.getElementById("area-grid"); grid.innerHTML="";
+  AREAS.forEach(function(a){
+    var aA=fa(actions,a.key),aR=fa(reqs,a.key),aT=fa(tasks,a.key);
+    if(!aA.length&&!aR.length&&!aT.length) return;
+    var mx=Math.max(aR.length,aT.length,1);
+    var card=document.createElement("div"); card.className="area-card";
+    card.innerHTML=buildCard(a.label,aA,aR,aT,aS,tS,mx);
+    grid.appendChild(card);
+  });
+}
+
+function buildNumSplit(acts){
+  if(!acts.length) return "<span class='empty'>—</span>";
+  var aligned=acts.filter(function(d){return isDone((d.State||"").trim());}).length;
+  var open=acts.length-aligned;
+  var blocks=[];
+  if(open)    blocks.push({val:open,    label:"Open",    bg:"#FDECEA",fg:"#9A2520"});
+  if(aligned) blocks.push({val:aligned, label:"Aligned", bg:"#E8F5E9",fg:"#1B5E20"});
+  blocks.push({val:acts.length,label:"Total",bg:"#F0E8F5",fg:"#4A1F5C"});
+  return "<div class='num-split'>"+blocks.map(function(b){
+    return "<div class='num-block' style='background:"+b.bg+"'><div class='num-block-value' style='color:"+b.fg+"'>"+b.val+"</div><div class='num-block-label' style='color:"+b.fg+"'>"+b.label+"</div></div>";
+  }).join("")+"</div>";
+}
+
+function buildBar(items,states,useTag,mx){
+  if(!items.length) return "<span class='empty'>—</span>";
+  var c={};
+  items.forEach(function(d){ var s=useTag?getTag(d):((d.State||"").trim()||"?"); c[s]=(c[s]||0)+1; });
+  var sts=useTag?["ASM to Review","ACN to Review","New"]:states;
+  var pct=Math.max(6,Math.round((items.length/mx)*100));
+  var segs=sts.map(function(s){ var n=c[s]||0; if(!n) return ""; var w=(n/items.length)*100; var col=useTag?(RTC[s]||"#4A1F5C"):gc(s); return "<div class='bar-segment' style='width:"+w+"%;background:"+col+"' title='"+s+": "+n+"'></div>"; }).join("");
+  var tags=sts.map(function(s){ var n=c[s]||0; if(!n) return ""; var col=useTag?(RTC[s]||"#4A1F5C"):gc(s); return "<span class='bar-tag'><span class='bar-tag-dot' style='background:"+col+"'></span>"+s+":<strong style='color:#4A1F5C;margin-left:1px'>"+n+"</strong></span>"; }).join("");
+  var closed=items.filter(function(d){return isDone((d.State||"").trim());}).length;
+  var closedPct=items.length>0?Math.round((closed/items.length)*100):0;
+  var side="<div class='bar-side'><div class='bar-side-val'>"+closedPct+"%</div><div class='bar-side-label'>closed</div>"+(closed>0?"<div class='bar-side-sub'>"+closed+" done</div>":"")+"</div>";
+  return "<div class='bar-row'><div class='bar-main'><div class='bar-wrap'><div class='bar-track-wrap'><div class='bar-track'><div class='bar-inner' style='width:"+pct+"%'>"+segs+"</div></div><div class='bar-tags'>"+tags+"</div></div><span class='bar-count'>"+items.length+"</span></div></div>"+side+"</div>";
+}
+
+function buildCard(label,aA,aR,aT,aS,tS,mx){
+  var tot=aA.length+aR.length+aT.length;
+  return "<div class='area-card-header'><span>"+label+"</span><small>"+tot+" items</small></div>"+
+    "<div class='area-card-body'>"+
+    "<div class='action-box'><div class='row-label'>⚡ Design Blockers (Actions)</div>"+buildNumSplit(aA)+"</div>"+
+    "<div class='funnel-section'>"+
+    "<div class='row-label'>User Story + AC (Requirements)</div>"+buildBar(aR,[],true,mx)+
+    "<div class='funnel-divider'><div class='funnel-line'></div><span class='funnel-text'>↓ drives</span></div>"+
+    "<div class='row-label'>Development (Tasks)</div>"+buildBar(aT,tS,false,mx)+
+    "</div></div>";
+}
+
+function renderWoW(){
+  if(!currentData||!prevData) return;
+  document.getElementById("wow-empty").style.display="none";
+  document.getElementById("wow-panel").style.display="block";
+
+  var cA=getType(currentData,"Action"),cR=getType(currentData,"Requirement"),cT=getType(currentData,"Task");
+  var pA=getType(prevData,"Action"),   pR=getType(prevData,"Requirement"),   pT=getType(prevData,"Task");
+
+  document.getElementById("wow-subtitle").textContent=currentData.length+" items this week vs "+prevData.length+" last week";
+
+  // Prev map for transitions — match by ID first, fallback to Title
+  var prevMapId={}, prevMapTitle={};
+  prevData.forEach(function(d){
+    if(d.ID) prevMapId[d.ID]=d;
+    if(d.Title) prevMapTitle[(d.Title||"").trim()]=d;
+  });
+
+  function findPrev(curr){
+    if(curr.ID && prevMapId[curr.ID]) return prevMapId[curr.ID];
+    if(curr.Title && prevMapTitle[(curr.Title||"").trim()]) return prevMapTitle[(curr.Title||"").trim()];
+    return null;
+  }
+
+  // Collect transitions per area
+  var transitions={};
+  AREAS.forEach(function(a){ transitions[a.label]={actions:[],reqs:[],tasks:[]}; });
+  currentData.forEach(function(curr){
+    var prev=findPrev(curr); if(!prev) return;
+    var cS=(curr.State||"").trim(), pS=(prev.State||"").trim();
+    if(cS===pS) return;
+    var area=null;
+    for(var i=0;i<AREAS.length;i++){ if((curr["Area Path"]||"").indexOf(AREAS[i].key)>-1){area=AREAS[i];break;} }
+    if(!area) return;
+    var t=(curr["Work Item Type"]||"").trim();
+    var obj={from:pS, to:cS, title:(curr.Title||"").trim()};
+    if(t==="Action")      transitions[area.label].actions.push(obj);
+    if(t==="Requirement") transitions[area.label].reqs.push(obj);
+    if(t==="Task")        transitions[area.label].tasks.push(obj);
+  });
+
+  // "What is working on" = current state snapshot (not transitions)
+  // - Functional team: Requirements tagged ACN to Review (current week)
+  // - Developers: Tasks In Progress (current week)
+  var workingLines=[];
+  AREAS.forEach(function(a){
+    var aR=fa(cR,a.key), aT=fa(cT,a.key);
+    var acnReqs=aR.filter(function(d){ return (d.Tags||"").toLowerCase().indexOf("acn to review")>-1; });
+    var inProgTasks=aT.filter(function(d){ return (d.State||"").trim()==="In Progress"; });
+    var parts=[];
+    if(acnReqs.length) parts.push("functional team has <strong>"+acnReqs.length+" user stor"+(acnReqs.length>1?"ies":"y")+"</strong> in ACN review");
+    if(inProgTasks.length) parts.push("developers actively working on <strong>"+inProgTasks.length+" task"+(inProgTasks.length>1?"s":"")+"</strong>");
+    if(parts.length) workingLines.push("<li>📍 <strong>"+a.label+"</strong>: "+parts.join(", ")+".</li>");
+  });
+
+  // "Completed & aligned" = state transitions → aligned/done this week
+  var completedLines=[];
+  AREAS.forEach(function(a){
+    var tr=transitions[a.label];
+    var compParts=[];
+    var actAligned=tr.actions.filter(function(c){return isDone(c.to);});
+    var reqClosed=tr.reqs.filter(function(c){return isDone(c.to);});
+    var taskDone=tr.tasks.filter(function(c){return isDone(c.to);});
+    if(actAligned.length) compParts.push("aligned <strong>"+actAligned.length+" design blocker"+(actAligned.length>1?"s":"")+"</strong>");
+    if(reqClosed.length)  compParts.push("signed off <strong>"+reqClosed.length+" user stor"+(reqClosed.length>1?"ies":"y")+"</strong>");
+    if(taskDone.length)   compParts.push("developers completed <strong>"+taskDone.length+" task"+(taskDone.length>1?"s":"")+"</strong>");
+    if(compParts.length)  completedLines.push("<li>📍 <strong>"+a.label+"</strong>: "+compParts.join(", ")+".</li>");
+  });
+
+  // Find newly aligned = Complete this week but not Complete last week (match by Title)
+  var newlyAlignedByArea={};
+  AREAS.forEach(function(a){ newlyAlignedByArea[a.label]=[]; });
+  cA.forEach(function(curr){
+    if(!isDone((curr.State||"").trim())) return;
+    var prev=findPrev(curr);
+    // if prev didn't exist or wasn't done before → newly aligned
+    if(!prev || !isDone((prev.State||"").trim())){
+      var area=null;
+      for(var i=0;i<AREAS.length;i++){ if((curr["Area Path"]||"").indexOf(AREAS[i].key)>-1){area=AREAS[i];break;} }
+      if(area) newlyAlignedByArea[area.label].push((curr.Title||"").trim());
+    }
+  });
+
+  // Find newly closed requirements
+  var newlyClosedReqsByArea={};
+  AREAS.forEach(function(a){ newlyClosedReqsByArea[a.label]=[]; });
+  cR.forEach(function(curr){
+    if(!isDone((curr.State||"").trim())) return;
+    var prev=findPrev(curr);
+    if(!prev || !isDone((prev.State||"").trim())){
+      var area=null;
+      for(var i=0;i<AREAS.length;i++){ if((curr["Area Path"]||"").indexOf(AREAS[i].key)>-1){area=AREAS[i];break;} }
+      if(area) newlyClosedReqsByArea[area.label].push((curr.Title||"").trim());
+    }
+  });
+
+  // Find newly completed tasks
+  var newlyDoneTasksByArea={};
+  AREAS.forEach(function(a){ newlyDoneTasksByArea[a.label]=[]; });
+  cT.forEach(function(curr){
+    if(!isDone((curr.State||"").trim())) return;
+    var prev=findPrev(curr);
+    if(!prev || !isDone((prev.State||"").trim())){
+      var area=null;
+      for(var i=0;i<AREAS.length;i++){ if((curr["Area Path"]||"").indexOf(AREAS[i].key)>-1){area=AREAS[i];break;} }
+      if(area) newlyDoneTasksByArea[area.label].push((curr.Title||"").trim());
+    }
+  });
+
+  function renderTitles(titles, color){
+    if(!titles.length) return "";
+    var MAX=3;
+    var shown=titles.slice(0,MAX).map(function(t){ return "<span style='display:block;padding:1px 0;color:"+color+";font-size:var(--s-1)'>› "+t+"</span>"; }).join("");
+    if(titles.length>MAX) shown+="<span style='display:block;font-size:var(--s-1);color:#888780'>+ "+(titles.length-MAX)+" more…</span>";
+    return shown;
+  }
+
+  completedLines=[];
+  AREAS.forEach(function(a){
+    var aligned=newlyAlignedByArea[a.label];
+    var reqClosed=newlyClosedReqsByArea[a.label];
+    var taskDone=newlyDoneTasksByArea[a.label];
+    if(!aligned.length&&!reqClosed.length&&!taskDone.length) return;
+    var parts=[];
+    if(aligned.length) parts.push("aligned <strong>"+aligned.length+" blocker"+(aligned.length>1?"s":"")+"</strong>: "+aligned.slice(0,2).join(", ")+(aligned.length>2?" + "+(aligned.length-2)+" more":""));
+    if(reqClosed.length) parts.push("closed <strong>"+reqClosed.length+" user stor"+(reqClosed.length>1?"ies":"y")+"</strong>: "+reqClosed.slice(0,2).join(", ")+(reqClosed.length>2?" + "+(reqClosed.length-2)+" more":""));
+    if(taskDone.length) parts.push("completed <strong>"+taskDone.length+" task"+(taskDone.length>1?"s":"")+"</strong>: "+taskDone.slice(0,2).join(", ")+(taskDone.length>2?" + "+(taskDone.length-2)+" more":""));
+    completedLines.push("<li>📍 <strong>"+a.label+"</strong> — "+parts.join("; ")+".</li>");
+  });
+
+  // Fallback if still nothing matched
+  if(completedLines.length===0){
+    var totalAlignedNow=cA.filter(function(d){return isDone((d.State||"").trim());}).length;
+    var totalAlignedPrev=pA.filter(function(d){return isDone((d.State||"").trim());}).length;
+    var diff=totalAlignedNow-totalAlignedPrev;
+    if(diff>0) completedLines.push("<li>✅ <strong>"+diff+" design blocker"+(diff>1?"s":"")+"</strong> moved to aligned ("+totalAlignedPrev+" → "+totalAlignedNow+" total).</li>");
+    var rcN=cR.filter(function(d){return isDone((d.State||"").trim());}).length;
+    var rcP=pR.filter(function(d){return isDone((d.State||"").trim());}).length;
+    if(rcN-rcP>0) completedLines.push("<li>✅ <strong>"+(rcN-rcP)+" user stor"+(rcN-rcP>1?"ies":"y")+"</strong> closed ("+rcP+" → "+rcN+" total).</li>");
+  }
+
+  // Tiles
+  var cAopen=cA.filter(function(d){return !isDone((d.State||"").trim());}).length;
+  var pAopen=pA.filter(function(d){return !isDone((d.State||"").trim());}).length;
+  var cAal=cA.filter(function(d){return isDone((d.State||"").trim());}).length;
+  var pAal=pA.filter(function(d){return isDone((d.State||"").trim());}).length;
+  var cRcl=cR.filter(function(d){return isDone((d.State||"").trim());}).length;
+  var pRcl=pR.filter(function(d){return isDone((d.State||"").trim());}).length;
+
+  function tileCol(type,diff){
+    if(diff===0) return {bg:"#F7F6F4",fg:"#4A1F5C"};
+    if(type==="open")   return diff>0?{bg:"#FDECEA",fg:"#9A2520"}:{bg:"#E8F5E9",fg:"#1B5E20"};
+    if(type==="good")   return diff>0?{bg:"#E8F5E9",fg:"#1B5E20"}:{bg:"#FDECEA",fg:"#9A2520"};
+    if(type==="closed") return diff>0?{bg:"#E8F5E9",fg:"#1B5E20"}:{bg:"#F7F6F4",fg:"#4A1F5C"};
+    return {bg:"#F7F6F4",fg:"#4A1F5C"};
+  }
+  var tiles=[
+    {label:"Open Blockers",  curr:cAopen,            prev:pAopen,           type:"open"},
+    {label:"Aligned",        curr:cAal,               prev:pAal,             type:"good"},
+    {label:"Requirements",   curr:cR.length,          prev:pR.length,        type:"neutral"},
+    {label:"Req Closed",     curr:cRcl,               prev:pRcl,             type:"closed"},
+    {label:"Tasks",          curr:cT.length,          prev:pT.length,        type:"neutral"},
+    {label:"Total items",    curr:currentData.length, prev:prevData.length,  type:"neutral"}
+  ];
+  document.getElementById("wow-summary").innerHTML=tiles.map(function(t){
+    var diff=t.curr-t.prev, col=tileCol(t.type,diff), arrow=diff>0?"▲":diff<0?"▼":"–";
+    return "<div class='wow-tile' style='background:"+col.bg+"'><div class='wow-tile-val' style='color:"+col.fg+"'>"+t.curr+"</div><div class='wow-tile-label' style='color:"+col.fg+"'>"+t.label+"</div><div class='wow-tile-delta' style='color:"+col.fg+"'>"+arrow+" "+(diff>0?"+":"")+diff+" vs last wk</div></div>";
+  }).join("");
+
+  // Narrative two-col
+  var noComp=completedLines.length===0, noProg=workingLines.length===0;
+  document.getElementById("wow-narrative").innerHTML=
+    "<div class='wow-narrative-box'>"+
+      "<div class='wow-narrative-title'>✅ What was completed &amp; aligned this week</div>"+
+      (noComp?"<p style='font-size:var(--s0);color:#888780'>No completions or alignments detected.</p>":"<ul>"+completedLines.join("")+"</ul>")+
+    "</div>"+
+    "<div class='wow-narrative-box'>"+
+      "<div class='wow-narrative-title'>🏃 What the team is currently working on</div>"+
+      (noProg?"<p style='font-size:var(--s0);color:#888780'>No active work items detected.</p>":"<ul>"+workingLines.join("")+"</ul>")+
+    "</div>";
+}
+</script>
+</body>
+</html>
